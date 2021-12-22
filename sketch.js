@@ -2,15 +2,15 @@ const Engine = Matter.Engine;
 const World = Matter.World;
 const Bodies = Matter.Bodies;
 const Constraint = Matter.Constraint;
-
-
-var isLaughing = false;
-var engine, world, backgroundImg;
-var canvas, angle, tower, ground, cannon;
+var engine, world, backgroundImg,
+waterSound,
+pirateLaughSound,
+backgroundMusic,
+cannonExplosion;
+var canvas, angle, tower, ground, cannon, boat;
 var balls = [];
 var boats = [];
 var score = 0;
-var isGameOver = false;
 var boatAnimation = [];
 var boatSpritedata, boatSpritesheet;
 
@@ -19,10 +19,16 @@ var brokenBoatSpritedata, brokenBoatSpritesheet;
 
 var waterSplashAnimation = [];
 var waterSplashSpritedata, waterSplashSpritesheet;
-var backgroundMusic,waterSound, pirateLaugh,cannonExplosion;
+
+var isGameOver = false;
+var isLaughing= false;
 
 function preload() {
   backgroundImg = loadImage("./assets/background.gif");
+  backgroundMusic = loadSound("./assets/background_music.mp3");
+  waterSound = loadSound("./assets/cannon_water.mp3");
+  pirateLaughSound = loadSound("./assets/pirate_laugh.mp3");
+  cannonExplosion = loadSound("./assets/cannon_explosion.mp3");
   towerImage = loadImage("./assets/tower.png");
   boatSpritedata = loadJSON("assets/boat/boat.json");
   boatSpritesheet = loadImage("assets/boat/boat.png");
@@ -30,15 +36,10 @@ function preload() {
   brokenBoatSpritesheet = loadImage("assets/boat/broken_boat.png");
   waterSplashSpritedata = loadJSON("assets/water_splash/water_splash.json");
   waterSplashSpritesheet = loadImage("assets/water_splash/water_splash.png");
-
-  backgroundMusic = loadSound('assets/background_music.mp3');
-  waterSound = loadSound('assets/cannon_water.mp3');
-  pirateLaugh = loadSound('assets/pirare_laugh.mp3');
-  cannonExplosion = loadSound('assets/cannon_explosion.mp3')
 }
 
 function setup() {
-  canvas = createCanvas(1200, 600);
+  canvas = createCanvas(1200,600);
   engine = Engine.create();
   world = engine.world;
   angleMode(DEGREES)
@@ -51,7 +52,7 @@ function setup() {
   tower = Bodies.rectangle(160, 350, 160, 310, { isStatic: true });
   World.add(world, tower);
 
-  cannon = new Cannon(180, 110, 130, 100, angle);
+  cannon = new Cannon(180, 110, 100, 50, angle);
 
   var boatFrames = boatSpritedata.frames;
   for (var i = 0; i < boatFrames.length; i++) {
@@ -79,14 +80,13 @@ function draw() {
   background(189);
   image(backgroundImg, 0, 0, width, height);
 
-  if(!backgroundMusic.isPlaying()){
+  if (!backgroundMusic.isPlaying()) {
     backgroundMusic.play();
     backgroundMusic.setVolume(0.1);
-
   }
 
   Engine.update(engine);
-
+ 
   push();
   translate(ground.position.x, ground.position.y);
   fill("brown");
@@ -103,14 +103,18 @@ function draw() {
 
   showBoats();
 
-  for (var i = 0; i < balls.length; i++) {
+   for (var i = 0; i < balls.length; i++) {
     showCannonBalls(balls[i], i);
     collisionWithBoat(i);
   }
 
   cannon.display();
-
   
+
+  fill("#6d4c41");
+  textSize(40);
+  text(`Score:${score}`, width - 200, 50);
+  textAlign(CENTER, CENTER);
 }
 
 function collisionWithBoat(index) {
@@ -119,7 +123,7 @@ function collisionWithBoat(index) {
       var collision = Matter.SAT.collides(balls[index].body, boats[i].body);
 
       if (collision.collided) {
-        
+        score+=5
           boats[i].remove(i);
         
 
@@ -144,10 +148,9 @@ function showCannonBalls(ball, index) {
     ball.display();
     ball.animate();
     if (ball.body.position.x >= width || ball.body.position.y >= height - 50) {
-        if(!ball.isSink){
-          waterSound.play()
-          ball.remove(index);
-        }
+      waterSound.play()  
+      ball.remove(index);
+      
     }
   }
 }
@@ -155,7 +158,7 @@ function showCannonBalls(ball, index) {
 function showBoats() {
   if (boats.length > 0) {
     if (
-      boats[boats.length - 1] === undefined ||
+      boats.length < 4 &&
       boats[boats.length - 1].body.position.x < width - 300
     ) {
       var positions = [-40, -60, -70, -20];
@@ -173,26 +176,22 @@ function showBoats() {
     }
 
     for (var i = 0; i < boats.length; i++) {
-      if (boats[i]) {
-        Matter.Body.setVelocity(boats[i].body, {
-          x: -0.9,
-          y: 0
-        });
+      Matter.Body.setVelocity(boats[i].body, {
+        x: -0.9,
+        y: 0
+      });
 
-        boats[i].display();
-        boats[i].animate();
-        var collision = Matter.SAT.collides(tower, boats[i].body)
-        if(collision.collided && !boats[i].isBroken){
-          if(!isLaughing && !pirateLaugh.isPlaying()){
-            pirateLaugh.play();
-            isLaughing= true;
+      boats[i].display();
+      boats[i].animate();
+      var collision = Matter.SAT.collides(this.tower, boats[i].body);
+      if (collision.collided && !boats[i].isBroken) {
+          //Added isLaughing flag and setting isLaughing to true
+          if(!isLaughing && !pirateLaughSound.isPlaying()){
+            pirateLaughSound.play();
+            isLaughing = true
           }
-          isGameOver = true;
-          gameOver()
-        }
-    }
-      else{
-        boats[i]
+        isGameOver = true;
+        gameOver();
       }
     }
   } else {
@@ -202,26 +201,26 @@ function showBoats() {
 }
 
 function keyReleased() {
-  if (keyCode === DOWN_ARROW) {
-    cannonExplosion.play()
+  if (keyCode === DOWN_ARROW && !isGameOver) {
+    cannonExplosion.play();
     balls[balls.length - 1].shoot();
   }
 }
 
-function gameOver(){
+function gameOver() {
   swal(
     {
-      title :"Game Over!!!",
-      text:'Thanks for Playing',
-      imageUrl:'https://raw.githubusercontent.com/whitehatjr/PiratesInvasion/main/assets/boat.png',
-      imageSize: '150x150',
-      confirmButtonText:'PLAY AGAIN'
+      title: `Game Over!!!`,
+      text: "Thanks for playing!!",
+      imageUrl:
+        "https://raw.githubusercontent.com/whitehatjr/PiratesInvasion/main/assets/boat.png",
+      imageSize: "150x150",
+      confirmButtonText: "Play Again"
     },
-
-    function isConfirm(){
-        if(isConfirm){
-          location.reload()
-        }
+    function(isConfirm) {
+      if (isConfirm) {
+        location.reload();
+      }
     }
-  )
+  );
 }
